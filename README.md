@@ -14,7 +14,7 @@ var thingCache = rediscache.New(client, "my:thing:key", func() (string, error) {
 
 func doSomethingWithTheData() {
 	var thing string
-	err := thingCache.get(&thing)
+	err := thingCache.Get(&thing)
 	if err != nil {
 		...
 	}

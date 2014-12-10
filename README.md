@@ -26,7 +26,7 @@ type Cache struct {
 	Getter func() (string, error)
 	Client *redis.Client
 
-	TTL time.Duration
+	TTL time.Duration // optional
 }
 ```
 

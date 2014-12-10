@@ -22,7 +22,7 @@ type Cache struct {
 	Getter func() (string, error)
 	Client *redis.Client
 
-	TTL time.Duration
+	TTL time.Duration // optional
 }
 
 // Get will set the given pointer's value to the cached value.

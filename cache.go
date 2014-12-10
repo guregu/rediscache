@@ -15,10 +15,11 @@ import (
 // Cache represents one GET/SET Redis-cached value.
 // It will try to get the value from Redis, setting the value with the given setFunc if necessary.
 type Cache struct {
-	key    interface{}
-	set    func() (string, error)
-	ttl    time.Duration
-	client *redis.Client
+	Key    interface{}
+	Set    func() (string, error)
+	Client *redis.Client
+
+	TTL time.Duration
 }
 
 // New creates a new Cache with no expiry
@@ -31,22 +32,24 @@ func New(client *redis.Client, key interface{}, setFunc func() (string, error)) 
 // Key can be one of: string, []byte, fmt.Stringer, func() string
 func WithTTL(client *redis.Client, key interface{}, setFunc func() (string, error), ttl time.Duration) Cache {
 	return Cache{
-		key:    key,
-		set:    setFunc,
-		ttl:    ttl,
-		client: client,
+		Key:    key,
+		Set:    setFunc,
+		Client: client,
+
+		TTL: ttl,
 	}
 }
 
 // Get will set the given pointer's value to the cached value.
 // If the cached value has not been set yet, it will call the setFunc and set the returned value.
 func (c Cache) Get(out interface{}) error {
-	if c.key == nil {
-		return fmt.Errorf("invalid key: %v", c.key)
+	// special case: hash values
+	if h, ok := c.Key.(Hash); ok {
+		return c.getHash(h, out)
 	}
 
 	key := c.keyStr()
-	value, err := c.client.Get(key).Result()
+	value, err := c.Client.Get(key).Result()
 	if err == nil {
 		// our data is already in redis
 		c.out(value, out)
@@ -54,19 +57,42 @@ func (c Cache) Get(out interface{}) error {
 	}
 
 	// we need to put the data in redis
-	value, err = c.set()
+	value, err = c.Set()
 	if err != nil {
 		return err
 	}
 
-	if c.ttl > 0 {
-		if err := c.client.SetEx(key, c.ttl, value).Err(); err != nil {
+	if c.TTL > 0 {
+		if err := c.Client.SetEx(key, c.TTL, value).Err(); err != nil {
 			return err
 		}
 	} else {
-		if err := c.client.Set(key, value).Err(); err != nil {
+		if err := c.Client.Set(key, value).Err(); err != nil {
 			return err
 		}
+	}
+
+	return c.out(value, out)
+}
+
+func (c Cache) getHash(h Hash, out interface{}) error {
+	value, err := c.Client.HGet(h.Key, h.Field).Result()
+	if err == nil {
+		// our data is already in redis
+		c.out(value, out)
+		return nil
+	}
+
+	// we need to put the data in redis
+	value, err = c.Set()
+	if err != nil {
+		return err
+	}
+
+	// hashes don't support TTL
+	// maybe warn for this?
+	if err := c.Client.HSet(h.Key, h.Field, value).Err(); err != nil {
+		return err
 	}
 
 	return c.out(value, out)
@@ -111,19 +137,5 @@ func (c Cache) out(value string, out interface{}) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("unknown type %T (%#v)", out, out)
-}
-
-func (c Cache) keyStr() string {
-	switch x := c.key.(type) {
-	case string:
-		return x
-	case []byte:
-		return string(x)
-	case fmt.Stringer:
-		return x.String()
-	case func() string:
-		return x()
-	}
-	panic(fmt.Errorf("unsupported key type %T (%#v)", c.key, c.key))
+	return fmt.Errorf("rediscache: unsupported type %T (%#v) from %s", out, out, value)
 }

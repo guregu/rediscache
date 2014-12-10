@@ -37,6 +37,23 @@ func TestCache(t *testing.T) {
 	}
 }
 
+func TestHashCache(t *testing.T) {
+	defer client.Del("rediscache_test")
+	cache := rediscache.New(client, rediscache.Hash{"rediscache_test", "hash"}, func() (string, error) {
+		return "hello world", nil
+	})
+
+	for i := 0; i < 3; i++ {
+		var result string
+		if err := cache.Get(&result); err != nil {
+			t.Error("unexpected error:", err)
+		}
+		if result != "hello world" {
+			t.Error("got:", result, "wanted:", "hello world")
+		}
+	}
+}
+
 type textunmarshaler string
 
 func (t *textunmarshaler) UnmarshalText(data []byte) error {

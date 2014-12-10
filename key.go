@@ -6,15 +6,9 @@ import (
 	"strconv"
 )
 
-// Hash is a Redis hash key-field pair. It can be used as a key for Caches.
-// Since Redis hash values can't expire, TTL does nothing.
-type Hash struct {
-	Key   string
-	Field string
-}
-
-func (c Cache) keyStr() string {
-	switch x := c.Key.(type) {
+// keyStr tries its best to turn a key or field interface{} into a string
+func keyStr(v interface{}) string {
+	switch x := v.(type) {
 	case string:
 		return x
 	case []byte:
@@ -36,5 +30,5 @@ func (c Cache) keyStr() string {
 		}
 		return string(data)
 	}
-	panic(fmt.Errorf("rediscache: unsupported key type %T (%#v)", c.Key, c.Key))
+	panic(fmt.Errorf("rediscache: unsupported key type %T (%#v)", v, v))
 }

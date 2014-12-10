@@ -12,52 +12,37 @@ import (
 	"gopkg.in/redis.v2"
 )
 
-// Cache represents one GET/SET Redis-cached value.
-// It will try to get the value from Redis, setting the value with the given setFunc if necessary.
+// Cache represents one Redis-cached value.
+// It will try to get the value from Redis, updating the cahe using the getter if necessary.
+// If the Field is empty, it will use GET and SET operations.
+// If the Field is not empty, it will use HGET and HSET. HGET/HSET don't support TTLs.
 type Cache struct {
 	Key    interface{}
-	Set    func() (string, error)
+	Field  interface{}
+	Getter func() (string, error)
 	Client *redis.Client
 
 	TTL time.Duration
-}
-
-// New creates a new Cache with no expiry
-// Key can be one of: string, []byte, fmt.Stringer, func() string
-func New(client *redis.Client, key interface{}, setFunc func() (string, error)) Cache {
-	return WithTTL(client, key, setFunc, 0)
-}
-
-// New creates a new Cache with the given TTL
-// Key can be one of: string, []byte, fmt.Stringer, func() string
-func WithTTL(client *redis.Client, key interface{}, setFunc func() (string, error), ttl time.Duration) Cache {
-	return Cache{
-		Key:    key,
-		Set:    setFunc,
-		Client: client,
-
-		TTL: ttl,
-	}
 }
 
 // Get will set the given pointer's value to the cached value.
 // If the cached value has not been set yet, it will call the setFunc and set the returned value.
 func (c Cache) Get(out interface{}) error {
 	// special case: hash values
-	if h, ok := c.Key.(Hash); ok {
-		return c.getHash(h, out)
+	if c.Field != nil {
+		return c.getHash(out)
 	}
 
-	key := c.keyStr()
+	key := keyStr(c.Key)
 	value, err := c.Client.Get(key).Result()
+	// if cached
 	if err == nil {
-		// our data is already in redis
 		c.out(value, out)
 		return nil
 	}
 
-	// we need to put the data in redis
-	value, err = c.Set()
+	// otherwise get the data and put it in redis
+	value, err = c.Getter()
 	if err != nil {
 		return err
 	}
@@ -75,23 +60,22 @@ func (c Cache) Get(out interface{}) error {
 	return c.out(value, out)
 }
 
-func (c Cache) getHash(h Hash, out interface{}) error {
-	value, err := c.Client.HGet(h.Key, h.Field).Result()
+func (c Cache) getHash(out interface{}) error {
+	key, field := keyStr(c.Key), keyStr(c.Field)
+	value, err := c.Client.HGet(key, field).Result()
 	if err == nil {
-		// our data is already in redis
 		c.out(value, out)
 		return nil
 	}
 
-	// we need to put the data in redis
-	value, err = c.Set()
+	value, err = c.Getter()
 	if err != nil {
 		return err
 	}
 
 	// hashes don't support TTL
 	// maybe warn for this?
-	if err := c.Client.HSet(h.Key, h.Field, value).Err(); err != nil {
+	if err := c.Client.HSet(key, field, value).Err(); err != nil {
 		return err
 	}
 
@@ -105,6 +89,9 @@ func (c Cache) out(value string, out interface{}) error {
 		return nil
 	case *[]byte:
 		*x = []byte(value)
+		return nil
+	case *json.RawMessage:
+		*x = json.RawMessage([]byte(value))
 		return nil
 	case *int64:
 		n, err := strconv.ParseInt(value, 10, 64)

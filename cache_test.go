@@ -22,12 +22,17 @@ func init() {
 
 func TestCache(t *testing.T) {
 	defer client.Del("rediscache_test:1")
-	cache := rediscache.New(client, "rediscache_test:1", func() (string, error) {
-		return "hello world", nil
-	})
+	cache := rediscache.Cache{
+		Client: client,
+		Key:    "rediscache_test:1",
+		Getter: func() (string, error) {
+			return "hello world", nil
+		},
+	}
 
 	for i := 0; i < 3; i++ {
 		var result string
+		t.Logf("%#v", cache)
 		if err := cache.Get(&result); err != nil {
 			t.Error("unexpected error:", err)
 		}
@@ -39,9 +44,14 @@ func TestCache(t *testing.T) {
 
 func TestHashCache(t *testing.T) {
 	defer client.Del("rediscache_test")
-	cache := rediscache.New(client, rediscache.Hash{"rediscache_test", "hash"}, func() (string, error) {
-		return "hello world", nil
-	})
+	cache := rediscache.Cache{
+		Client: client,
+		Key:    "rediscache_test",
+		Field:  "hash",
+		Getter: func() (string, error) {
+			return "hello world", nil
+		},
+	}
 
 	for i := 0; i < 3; i++ {
 		var result string
@@ -62,9 +72,14 @@ func (t *textunmarshaler) UnmarshalText(data []byte) error {
 }
 
 func TestGetTextUnmarshaler(t *testing.T) {
-	cache := rediscache.WithTTL(client, "rediscache_test:1", func() (string, error) {
-		return "hello world", nil
-	}, time.Second)
+	cache := rediscache.Cache{
+		Client: client,
+		Key:    "rediscache_test:2",
+		Getter: func() (string, error) {
+			return "hello world", nil
+		},
+		TTL: time.Second,
+	}
 
 	for i := 0; i < 3; i++ {
 		var result textunmarshaler
@@ -78,9 +93,14 @@ func TestGetTextUnmarshaler(t *testing.T) {
 }
 
 func TestGetInts(t *testing.T) {
-	cache := rediscache.WithTTL(client, "rediscache_test:3", func() (string, error) {
-		return "12345", nil
-	}, time.Second)
+	cache := rediscache.Cache{
+		Client: client,
+		Key:    "rediscache_test:3",
+		Getter: func() (string, error) {
+			return "12345", nil
+		},
+		TTL: time.Second,
+	}
 
 	var result int
 	if err := cache.Get(&result); err != nil {
@@ -112,9 +132,14 @@ func TestKeyFunc(t *testing.T) {
 		return "rediscache_test:4"
 	}
 
-	cache := rediscache.WithTTL(client, keyfunc, func() (string, error) {
-		return "12345", nil
-	}, time.Second)
+	cache := rediscache.Cache{
+		Client: client,
+		Key:    keyfunc(),
+		Getter: func() (string, error) {
+			return "12345", nil
+		},
+		TTL: time.Second,
+	}
 
 	var result int
 	if err := cache.Get(&result); err != nil {
@@ -132,9 +157,14 @@ func TestUnmarshalJSON(t *testing.T) {
 	}
 	expected := testType{1, "qqq"}
 
-	cache := rediscache.WithTTL(client, "rediscache_test:5", func() (string, error) {
-		return `{"a": 1, "b": "qqq"}`, nil
-	}, time.Second)
+	cache := rediscache.Cache{
+		Client: client,
+		Key:    "rediscache_test:5",
+		Getter: func() (string, error) {
+			return `{"a": 1, "b": "qqq"}`, nil
+		},
+		TTL: time.Second,
+	}
 
 	var got testType
 	cache.Get(&got)

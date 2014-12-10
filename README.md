@@ -3,6 +3,18 @@
 
 rediscache is a small library for caching data in Redis, similar to how one might define a groupcache topic. When getting a value, it will automatically convert the stringly-typed Redis data to whatever you pass to it, kind of like how json.Unmarshal works. I'm still playing around with this, so consider it unstable. 
 
+### Rationale
+I found myself writing code that repeats these actions over and over:
+
+* Turn some kind of an ID into a Redis key
+* Try to get the value from Redis
+* If missing from the cache, calculate the value and set it in Redis 
+* Convert the result string into something usable 
+
+This is a generic way to do the above, inspired by groupcache and the standard JSON package.
+
+### Usage
+
 ```go
 // Cache represents one Redis-cached value.
 // It will try to get the value from Redis, updating the cahe using the getter if necessary.
@@ -18,8 +30,7 @@ type Cache struct {
 }
 ```
 
-### Usage
-
+#### Example
 ```go
 var redisClient *redis.Client
 var thingCache = rediscache.Cache{
@@ -48,7 +59,7 @@ func doSomethingWithTheData() {
 ```
 
 #### Polymorphism
-In the world of Redis, everything is a string. Key and Field take an interface{} and try their best to turn it into a string, including checking for `fmt.Stringer` and `encoding.TextMarshaler`. You can also give them a `func() String`. 
+In the world of Redis, everything is a string, but that is not so true in the real world. Key and Field take an interface{} and try their best to turn it into a string, including checking for `fmt.Stringer` and `encoding.TextMarshaler`. You can also give them a `func() String`. 
 
 ```go
 	dailyCache := rediscache.Cache{

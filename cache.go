@@ -24,12 +24,12 @@ type Cache struct {
 // New creates a new Cache with no expiry
 // Key can be one of: string, []byte, fmt.Stringer, func() string
 func New(client *redis.Client, key interface{}, setFunc func() (string, error)) Cache {
-	return NewWithTTL(client, key, setFunc, 0)
+	return WithTTL(client, key, setFunc, 0)
 }
 
 // New creates a new Cache with the given TTL
 // Key can be one of: string, []byte, fmt.Stringer, func() string
-func NewWithTTL(client *redis.Client, key interface{}, setFunc func() (string, error), ttl time.Duration) Cache {
+func WithTTL(client *redis.Client, key interface{}, setFunc func() (string, error), ttl time.Duration) Cache {
 	return Cache{
 		key:    key,
 		set:    setFunc,

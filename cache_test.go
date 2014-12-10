@@ -1,10 +1,11 @@
-// Warning: Flushes DB #15 @ localhost:6379
+// Needs redis running at localhost:6379.
+// TODO: take flags
 package rediscache_test
 
 import (
 	"reflect"
 	"testing"
-	// "time"
+	"time"
 
 	"github.com/guregu/rediscache"
 	"gopkg.in/redis.v2"
@@ -17,11 +18,11 @@ func init() {
 		Addr: "localhost:6379",
 		DB:   int64(15),
 	})
-	client.FlushDb()
 }
 
 func TestCache(t *testing.T) {
-	cache := rediscache.New(client, "cachetest:1", func() (string, error) {
+	defer client.Del("rediscache_test:1")
+	cache := rediscache.New(client, "rediscache_test:1", func() (string, error) {
 		return "hello world", nil
 	})
 
@@ -44,9 +45,9 @@ func (t *textunmarshaler) UnmarshalText(data []byte) error {
 }
 
 func TestGetTextUnmarshaler(t *testing.T) {
-	cache := rediscache.New(client, "cachetest:2", func() (string, error) {
+	cache := rediscache.WithTTL(client, "rediscache_test:1", func() (string, error) {
 		return "hello world", nil
-	})
+	}, time.Second)
 
 	for i := 0; i < 3; i++ {
 		var result textunmarshaler
@@ -60,9 +61,9 @@ func TestGetTextUnmarshaler(t *testing.T) {
 }
 
 func TestGetInts(t *testing.T) {
-	cache := rediscache.New(client, "cachetest:3", func() (string, error) {
+	cache := rediscache.WithTTL(client, "rediscache_test:3", func() (string, error) {
 		return "12345", nil
-	})
+	}, time.Second)
 
 	var result int
 	if err := cache.Get(&result); err != nil {
@@ -91,12 +92,12 @@ func TestGetInts(t *testing.T) {
 
 func TestKeyFunc(t *testing.T) {
 	keyfunc := func() string {
-		return "cachetest:4"
+		return "rediscache_test:4"
 	}
 
-	cache := rediscache.New(client, keyfunc, func() (string, error) {
+	cache := rediscache.WithTTL(client, keyfunc, func() (string, error) {
 		return "12345", nil
-	})
+	}, time.Second)
 
 	var result int
 	if err := cache.Get(&result); err != nil {
@@ -114,9 +115,9 @@ func TestUnmarshalJSON(t *testing.T) {
 	}
 	expected := testType{1, "qqq"}
 
-	cache := rediscache.New(client, "cachetest:5", func() (string, error) {
+	cache := rediscache.WithTTL(client, "rediscache_test:5", func() (string, error) {
 		return `{"a": 1, "b": "qqq"}`, nil
-	})
+	}, time.Second)
 
 	var got testType
 	cache.Get(&got)

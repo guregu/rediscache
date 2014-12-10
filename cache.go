@@ -23,13 +23,13 @@ type Cache struct {
 }
 
 // New creates a new Cache with no expiry
-func New(client *redis.Client, key string, setFunc func() (string, error)) *Cache {
+func New(client *redis.Client, key string, setFunc func() (string, error)) Cache {
 	return NewWithTTL(client, key, setFunc, 0)
 }
 
 // New creates a new Cache with the given TTL
-func NewWithTTL(client *redis.Client, key string, setFunc func() (string, error), ttl time.Duration) *Cache {
-	return &Cache{
+func NewWithTTL(client *redis.Client, key string, setFunc func() (string, error), ttl time.Duration) Cache {
+	return Cache{
 		Key: key,
 
 		set:    setFunc,
@@ -97,10 +97,9 @@ func (c Cache) out(value string, out interface{}) error {
 		*x = n
 		return nil
 	case encoding.TextUnmarshaler:
-		x.UnmarshalText([]byte(value))
-		return nil
+		return x.UnmarshalText([]byte(value))
 	case json.Unmarshaler:
-		x.UnmarshalJSON([]byte(value))
+		return x.UnmarshalJSON([]byte(value))
 	default:
 		// hail mary
 		if err := json.Unmarshal([]byte(value), out); err == nil {

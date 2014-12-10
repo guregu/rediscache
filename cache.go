@@ -15,23 +15,23 @@ import (
 // Cache represents one GET/SET Redis-cached value.
 // It will try to get the value from Redis, setting the value with the given setFunc if necessary.
 type Cache struct {
-	Key string
-
+	key    interface{}
 	set    func() (string, error)
 	ttl    time.Duration
 	client *redis.Client
 }
 
 // New creates a new Cache with no expiry
-func New(client *redis.Client, key string, setFunc func() (string, error)) Cache {
+// Key can be one of: string, []byte, fmt.Stringer, func() string
+func New(client *redis.Client, key interface{}, setFunc func() (string, error)) Cache {
 	return NewWithTTL(client, key, setFunc, 0)
 }
 
 // New creates a new Cache with the given TTL
-func NewWithTTL(client *redis.Client, key string, setFunc func() (string, error), ttl time.Duration) Cache {
+// Key can be one of: string, []byte, fmt.Stringer, func() string
+func NewWithTTL(client *redis.Client, key interface{}, setFunc func() (string, error), ttl time.Duration) Cache {
 	return Cache{
-		Key: key,
-
+		key:    key,
 		set:    setFunc,
 		ttl:    ttl,
 		client: client,
@@ -41,7 +41,12 @@ func NewWithTTL(client *redis.Client, key string, setFunc func() (string, error)
 // Get will set the given pointer's value to the cached value.
 // If the cached value has not been set yet, it will call the setFunc and set the returned value.
 func (c Cache) Get(out interface{}) error {
-	value, err := c.client.Get(c.Key).Result()
+	if c.key == nil {
+		return fmt.Errorf("invalid key: %v", c.key)
+	}
+
+	key := c.keyStr()
+	value, err := c.client.Get(key).Result()
 	if err == nil {
 		// our data is already in redis
 		c.out(value, out)
@@ -55,11 +60,11 @@ func (c Cache) Get(out interface{}) error {
 	}
 
 	if c.ttl > 0 {
-		if err := c.client.SetEx(c.Key, c.ttl, value).Err(); err != nil {
+		if err := c.client.SetEx(key, c.ttl, value).Err(); err != nil {
 			return err
 		}
 	} else {
-		if err := c.client.Set(c.Key, value).Err(); err != nil {
+		if err := c.client.Set(key, value).Err(); err != nil {
 			return err
 		}
 	}
@@ -106,5 +111,19 @@ func (c Cache) out(value string, out interface{}) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("unknown type %T", out)
+	return fmt.Errorf("unknown type %T (%#v)", out, out)
+}
+
+func (c Cache) keyStr() string {
+	switch x := c.key.(type) {
+	case string:
+		return x
+	case []byte:
+		return string(x)
+	case fmt.Stringer:
+		return x.String()
+	case func() string:
+		return x()
+	}
+	panic(fmt.Errorf("unsupported key type %T (%#v)", c.key, c.key))
 }

@@ -66,7 +66,7 @@ In the world of Redis, everything is a string, but that is not so true in the re
 		Client: client,
 		Key:    func() string {
 			date := time.Now().Format("2006-01-02")
-			return "thing:" + date, nil
+			return "thing:" + date
 		},
 		Getter: func() (string, error) {
 			var todaysThing string

@@ -7,15 +7,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/guregu/gredlib"
 	"github.com/guregu/rediscache"
 	"gopkg.in/redis.v2"
 )
 
 var client *redis.Client
 
+var listenAddr = "localhost:6389"
+
 func init() {
+	go gredlib.ListenAndServe("tcp", listenAddr)
+
 	client = redis.NewTCPClient(&redis.Options{
-		Addr: "localhost:6379",
+		Addr: listenAddr,
 		DB:   int64(15),
 	})
 }

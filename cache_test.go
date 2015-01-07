@@ -1,5 +1,4 @@
-// Needs redis running at localhost:6379.
-// TODO: take flags
+// Tests use a gred server that runs at localhost:6389
 package rediscache_test
 
 import (
